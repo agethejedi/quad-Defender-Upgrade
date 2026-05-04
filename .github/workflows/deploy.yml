@@ -31,10 +31,10 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --no-package-lock --legacy-peer-deps
 
       - name: Install vite explicitly
-        run: npm install vite --save-dev
+        run: npm install vite --no-package-lock
 
       - name: Build
         run: ./node_modules/.bin/vite build
@@ -50,4 +50,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
