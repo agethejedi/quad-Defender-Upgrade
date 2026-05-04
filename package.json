@@ -1,0 +1,19 @@
+{
+  "name": "quad-turret-github-build",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "deploy": "npm run build && gh-pages -d dist"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "vite": "latest",
+    "three": "latest",
+    "gh-pages": "latest"
+  },
+  "devDependencies": {}
+}
