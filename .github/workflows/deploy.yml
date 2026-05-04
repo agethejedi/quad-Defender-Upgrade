@@ -29,13 +29,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
 
       - name: Install dependencies
         run: npm install
 
+      - name: Install vite explicitly
+        run: npm install vite --save-dev
+
       - name: Build
-        run: npm run build
+        run: ./node_modules/.bin/vite build
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
