@@ -1,30 +1,74 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Quad Turret Prototype</title>
-    <script type="module" crossorigin src="./assets/index-CWYD0RiD.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-DZQjwKbR.css">
-  </head>
-  <body>
-    <canvas id="game"></canvas>
-    <div id="hud">
-      <div class="top left">
-        <div class="label">SCORE</div><div id="score" class="big">0</div>
-        <div class="label green">KILLS</div><div id="kills" class="big green">0 / 5</div>
-      </div>
-      <div class="top right">
-        <div class="label">WAVE</div><div id="wave" class="big">1 / 3</div>
-      </div>
-      <div id="bossHud" class="boss hidden"><div>BOSS</div><div class="bar"><span id="bossBar"></span></div></div>
-      <div id="reticle"><span></span></div>
-      <div class="dash">
-        <div class="panel"><div class="label green">SHIELD</div><div id="shieldPct" class="big green">100%</div><div id="hits">0 / 30 hits</div></div>
-        <div class="shieldDome"></div>
-        <div class="panel"><div class="label green">ROUND</div><div id="round" class="big green">1</div><div id="objective">Destroy 5 enemies</div></div>
-      </div>
-      <div id="message">Move mouse/touch to aim • Click/tap to fire • R to restart</div>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quad Turret — Space Shooter</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+  <script type="module" src="./main.js"></script>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <div id="hud">
+
+    <!-- Top Left: Score + Kills -->
+    <div class="top left">
+      <div class="label">SCORE</div>
+      <div id="score" class="big">0</div>
+      <div class="label green" style="margin-top:10px">KILLS</div>
+      <div id="kills" class="big green">0 / 5</div>
     </div>
-  </body>
+
+    <!-- Top Right: Wave -->
+    <div class="top right">
+      <div class="label">WAVE</div>
+      <div id="wave" class="big">1 / 3</div>
+    </div>
+
+    <!-- Boss Health Bar (center top) -->
+    <div id="bossHud" class="boss hidden">
+      <div class="boss-label">— BOSS —</div>
+      <div class="bar"><span id="bossBar"></span></div>
+    </div>
+
+    <!-- Reticle (crosshair) -->
+    <div id="reticle"><span></span></div>
+
+    <!-- Combo display -->
+    <div id="combo"></div>
+
+    <!-- Bottom Dashboard -->
+    <div class="dash">
+
+      <!-- Shield Panel -->
+      <div class="panel">
+        <div class="label green">SHIELD</div>
+        <div id="shieldPct" class="big green">100%</div>
+        <div class="shield-track">
+          <div class="shield-track-fill" id="shieldBar"></div>
+        </div>
+        <div id="hits" class="sub">0 / 30</div>
+      </div>
+
+      <!-- Shield Dome visual -->
+      <div class="shieldDome"></div>
+
+      <!-- Round / Objective Panel -->
+      <div class="panel">
+        <div class="label green">ROUND</div>
+        <div id="round" class="big green">1</div>
+        <div id="objective" class="objective-text">Destroy 5 enemies</div>
+      </div>
+
+    </div>
+
+    <!-- Bottom hint message -->
+    <div id="message">Move to aim &nbsp;·&nbsp; Click / <kbd>Space</kbd> to fire &nbsp;·&nbsp; <kbd>R</kbd> to restart</div>
+
+  </div>
+</body>
 </html>
