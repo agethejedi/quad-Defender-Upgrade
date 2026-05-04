@@ -1,6 +1,6 @@
 {
-  "name": "quad-turret-github-build",
-  "version": "0.2.0",
+  "name": "quad-turret-enhanced",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,10 +10,10 @@
     "deploy": "npm run build && gh-pages -d dist"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "latest",
-    "vite": "latest",
-    "three": "latest",
-    "gh-pages": "latest"
+    "three": "^0.184.0"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "gh-pages": "latest",
+    "vite": "^6.0.0"
+  }
 }
