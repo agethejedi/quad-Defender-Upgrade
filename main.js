@@ -41,6 +41,8 @@ const blasts = []
 const debris = []
 const enemyLasers = []
 const engineTrails = []
+const muzzleFlashes = []    // tracks active muzzle flash meshes
+const cannonGroups = []     // tracks cannon barrel groups for recoil
 
 // ─── HUD Elements ────────────────────────────────────────────────────────────
 const scoreEl     = document.querySelector('#score')
@@ -147,15 +149,17 @@ function stdMat(color, rough = 0.45, metal = 0.7) {
   return new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal })
 }
 
-// Player cockpit — dark and techy
-const hullMat   = stdMat(0x3a5070, 0.3, 0.75)
-const hull2Mat  = stdMat(0x2a3d58, 0.35, 0.7)
-const darkMat   = stdMat(0x1a2840, 0.5, 0.55)
-const blueMat   = new THREE.MeshStandardMaterial({ color: 0x1a7fff, emissive: 0x0066ff, emissiveIntensity: 2.8 })
+// Player cockpit — dark steel
+const hullMat   = stdMat(0x2a3545, 0.35, 0.85)
+const hull2Mat  = stdMat(0x1e2838, 0.40, 0.80)
+const darkMat   = stdMat(0x0e1520, 0.55, 0.60)
+const blueMat   = new THREE.MeshStandardMaterial({ color: 0x1a7fff, emissive: 0x0055ff, emissiveIntensity: 3.0 })
+const dimBlueMat= new THREE.MeshStandardMaterial({ color: 0x0a3a88, emissive: 0x0033cc, emissiveIntensity: 1.2 })
 const greenMat  = new THREE.MeshStandardMaterial({ color: 0x44ff70, emissive: 0x22ff55, emissiveIntensity: 1.8, transparent: true, opacity: 0.32 })
 const accentMat = new THREE.MeshStandardMaterial({ color: 0x44aaff, emissive: 0x2288ff, emissiveIntensity: 1.4 })
+const muzzleMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.0 })
 
-// Enemy materials — bright purple/red emissive hulls so they glow in the dark
+// Enemy materials
 const enemyHullMat = new THREE.MeshStandardMaterial({ color: 0xaa44dd, emissive: 0x7711bb, emissiveIntensity: 1.5, roughness: 0.25, metalness: 0.8 })
 const enemyDarkMat = new THREE.MeshStandardMaterial({ color: 0x661188, emissive: 0x440066, emissiveIntensity: 1.2, roughness: 0.4, metalness: 0.7 })
 const redMat       = new THREE.MeshStandardMaterial({ color: 0xff6666, emissive: 0xff1020, emissiveIntensity: 7.0 })
@@ -163,9 +167,7 @@ const orangeMat    = new THREE.MeshStandardMaterial({ color: 0xff9944, emissive:
 const bossHullMat  = new THREE.MeshStandardMaterial({ color: 0xdd2200, emissive: 0xbb1100, emissiveIntensity: 1.8, roughness: 0.2, metalness: 0.9 })
 const bossDarkMat  = new THREE.MeshStandardMaterial({ color: 0x991100, emissive: 0x660800, emissiveIntensity: 1.4, roughness: 0.3, metalness: 0.8 })
 
-// ─── Player Cockpit ──────────────────────────────────────────────────────────
-const cockpit = new THREE.Group()
-
+// ─── Helper ───────────────────────────────────────────────────────────────────
 function addBox(group, sx, sy, sz, x, y, z, material, rotZ=0, rotX=0) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), material)
   m.position.set(x, y, z)
@@ -176,86 +178,218 @@ function addBox(group, sx, sy, sz, x, y, z, material, rotZ=0, rotX=0) {
   return m
 }
 
-// Bottom crossbar
-addBox(cockpit, 14, .5, .6,  0, -1.65, 1.4, hullMat)
-addBox(cockpit, 2.2, .35, .45, 0, -1.72, 0.0, hull2Mat)
-
-// Blue wing accent strips
-addBox(cockpit, 4.0, .25, .32, -4.2, -1.14, 0.2, blueMat)
-addBox(cockpit, 4.0, .25, .32,  4.2, -1.14, 0.2, blueMat)
-addBox(cockpit, 2.0, .16, .22, -4.2, -1.38, 0.2, accentMat)
-addBox(cockpit, 2.0, .16, .22,  4.2, -1.38, 0.2, accentMat)
-
-// Crossbar detail bumps
-const rimPositions = [-5.2, -3.4, -1.6, 0, 1.6, 3.4, 5.2]
-rimPositions.forEach(x => { addBox(cockpit, .26, .16, .42, x, -1.56, 1.55, hull2Mat) })
-
-// ── LEFT side frame panel (thick, angled, fills left edge of screen)
-const leftPanel = new THREE.Group()
-// Main vertical slab
-addBox(leftPanel, 2.8, 12, 1.2, 0, 0, 0, hullMat)
-// Inner face detail plates
-addBox(leftPanel, .18, 10, .9, 1.2, 0, 0, hull2Mat)
-addBox(leftPanel, .12, 8,  .7, 1.3, 0.4, 0, darkMat)
-// Horizontal accent strips with blue glow
-addBox(leftPanel, 2.8, .18, .55, 0, -1.8, 0.1, blueMat)
-addBox(leftPanel, 2.8, .18, .55, 0,  0.2, 0.1, blueMat)
-addBox(leftPanel, 2.8, .18, .55, 0,  2.2, 0.1, blueMat)
-addBox(leftPanel, 2.8, .12, .4,  0, -0.8, 0.1, accentMat)
-addBox(leftPanel, 2.8, .12, .4,  0,  1.2, 0.1, accentMat)
-// Rivets / bolt details
-for (let ry of [-3, -1.5, 0, 1.5, 3]) {
-  addBox(leftPanel, .22, .22, .22, 1.1, ry, 0.45, hull2Mat)
+// Build a trapezoidal panel using ExtrudeGeometry
+// wide at bottom, narrow at top, thick in Z
+function makeTrapPanel(wBottom, wTop, height, depth, material) {
+  const shape = new THREE.Shape()
+  const hw = wBottom / 2, tw = wTop / 2, h = height
+  shape.moveTo(-hw, 0)
+  shape.lineTo( hw, 0)
+  shape.lineTo( tw, h)
+  shape.lineTo(-tw, h)
+  shape.closePath()
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth, bevelEnabled: true, bevelSize: 0.04, bevelThickness: 0.04, bevelSegments: 2
+  })
+  return new THREE.Mesh(geo, material)
 }
-leftPanel.position.set(-8.2, 0.5, 1.0)
-leftPanel.rotation.y =  0.22
-leftPanel.rotation.z = -0.04
-cockpit.add(leftPanel)
 
-// ── RIGHT side frame panel (mirror)
-const rightPanel = new THREE.Group()
-addBox(rightPanel, 2.8, 12, 1.2, 0, 0, 0, hullMat)
-addBox(rightPanel, .18, 10, .9, -1.2, 0, 0, hull2Mat)
-addBox(rightPanel, .12, 8,  .7, -1.3, 0.4, 0, darkMat)
-addBox(rightPanel, 2.8, .18, .55, 0, -1.8, 0.1, blueMat)
-addBox(rightPanel, 2.8, .18, .55, 0,  0.2, 0.1, blueMat)
-addBox(rightPanel, 2.8, .18, .55, 0,  2.2, 0.1, blueMat)
-addBox(rightPanel, 2.8, .12, .4,  0, -0.8, 0.1, accentMat)
-addBox(rightPanel, 2.8, .12, .4,  0,  1.2, 0.1, accentMat)
-for (let ry of [-3, -1.5, 0, 1.5, 3]) {
-  addBox(rightPanel, .22, .22, .22, -1.1, ry, 0.45, hull2Mat)
+// ─── Player Cockpit ──────────────────────────────────────────────────────────
+const cockpit = new THREE.Group()
+
+// ── Bottom crossbar
+addBox(cockpit, 15, .55, .65,  0, -1.62, 1.5, hullMat)
+addBox(cockpit, 2.4, .38, .48,  0, -1.70, 0.1, hull2Mat)
+const rimXs = [-5.8, -4.0, -2.2, -0.5, 0.5, 2.2, 4.0, 5.8]
+rimXs.forEach(x => addBox(cockpit, .28, .18, .45, x, -1.54, 1.72, hull2Mat))
+
+// ── LEFT side panel — trapezoidal, wide at bottom screen edge
+const leftPanelGroup = new THREE.Group()
+
+// Main trapezoid slab (wide bottom ~4u, narrow top ~2.2u, tall ~14u, deep ~1.4u)
+const leftTrap = makeTrapPanel(4.2, 2.0, 14, 1.4, hullMat)
+leftTrap.position.set(-2.1, -7, -0.7)
+leftPanelGroup.add(leftTrap)
+
+// Inner edge vertical LED strip (bright blue, runs full height)
+const ledStripL = new THREE.Mesh(
+  new THREE.BoxGeometry(0.14, 13, 0.22),
+  blueMat
+)
+ledStripL.position.set(1.9, 0, 0.5)
+leftPanelGroup.add(ledStripL)
+
+// Secondary dimmer strip beside main LED
+const ledDimL = new THREE.Mesh(new THREE.BoxGeometry(0.10, 11, 0.16), dimBlueMat)
+ledDimL.position.set(1.7, 0, 0.5)
+leftPanelGroup.add(ledDimL)
+
+// Horizontal segment lines across panel face
+for (let hy of [-3.5, -1.5, 0.5, 2.5, 4.5]) {
+  addBox(leftPanelGroup, 3.8, 0.12, 0.18, -0.3, hy, 0.72, hull2Mat)
 }
-rightPanel.position.set(8.2, 0.5, 1.0)
-rightPanel.rotation.y = -0.22
-rightPanel.rotation.z =  0.04
-cockpit.add(rightPanel)
+// Accent glow strips (thinner, blue tint)
+for (let hy of [-2.5, 1.5]) {
+  addBox(leftPanelGroup, 3.2, 0.10, 0.14, -0.3, hy, 0.74, accentMat)
+}
+// Bolt details on panel face
+for (let hy of [-4, -2, 0, 2, 4]) {
+  addBox(leftPanelGroup, 0.18, 0.18, 0.18, -1.8, hy, 0.75, hull2Mat)
+  addBox(leftPanelGroup, 0.18, 0.18, 0.18,  0.8, hy, 0.75, hull2Mat)
+}
+// Panel surface plates (sub-panels)
+addBox(leftPanelGroup, 3.0, 3.5, 0.12, -0.3, -4.5, 0.72, darkMat)
+addBox(leftPanelGroup, 3.0, 3.5, 0.12, -0.3,  1.2, 0.72, darkMat)
 
-// Blue glow lights on side panels
-const leftPanelLight = new THREE.PointLight(0x0055ff, 1.8, 8)
-leftPanelLight.position.set(-7.5, 0, 1.5)
+// Position left panel — angled to fill ~20% left of screen
+leftPanelGroup.position.set(-8.8, -1.0, 2.2)
+leftPanelGroup.rotation.y =  0.30
+leftPanelGroup.rotation.z = -0.03
+cockpit.add(leftPanelGroup)
+
+// ── RIGHT side panel — mirror of left
+const rightPanelGroup = new THREE.Group()
+
+const rightTrap = makeTrapPanel(4.2, 2.0, 14, 1.4, hullMat)
+rightTrap.position.set(-2.1, -7, -0.7)
+rightPanelGroup.add(rightTrap)
+
+const ledStripR = new THREE.Mesh(new THREE.BoxGeometry(0.14, 13, 0.22), blueMat)
+ledStripR.position.set(-1.9, 0, 0.5)
+rightPanelGroup.add(ledStripR)
+
+const ledDimR = new THREE.Mesh(new THREE.BoxGeometry(0.10, 11, 0.16), dimBlueMat)
+ledDimR.position.set(-1.7, 0, 0.5)
+rightPanelGroup.add(ledDimR)
+
+for (let hy of [-3.5, -1.5, 0.5, 2.5, 4.5]) {
+  addBox(rightPanelGroup, 3.8, 0.12, 0.18, -0.3, hy, 0.72, hull2Mat)
+}
+for (let hy of [-2.5, 1.5]) {
+  addBox(rightPanelGroup, 3.2, 0.10, 0.14, -0.3, hy, 0.74, accentMat)
+}
+for (let hy of [-4, -2, 0, 2, 4]) {
+  addBox(rightPanelGroup, 0.18, 0.18, 0.18, -1.8, hy, 0.75, hull2Mat)
+  addBox(rightPanelGroup, 0.18, 0.18, 0.18,  0.8, hy, 0.75, hull2Mat)
+}
+addBox(rightPanelGroup, 3.0, 3.5, 0.12, -0.3, -4.5, 0.72, darkMat)
+addBox(rightPanelGroup, 3.0, 3.5, 0.12, -0.3,  1.2, 0.72, darkMat)
+
+rightPanelGroup.position.set(6.4, -1.0, 2.2)
+rightPanelGroup.rotation.y = -0.30
+rightPanelGroup.rotation.z =  0.03
+cockpit.add(rightPanelGroup)
+
+// ── Panel glow lights
+const leftPanelLight = new THREE.PointLight(0x0055ff, 2.5, 10)
+leftPanelLight.position.set(-8.0, 1.0, 2.5)
 cockpit.add(leftPanelLight)
-const rightPanelLight = new THREE.PointLight(0x0055ff, 1.8, 8)
-rightPanelLight.position.set(7.5, 0, 1.5)
+const rightPanelLight = new THREE.PointLight(0x0055ff, 2.5, 10)
+rightPanelLight.position.set(8.0, 1.0, 2.5)
 cockpit.add(rightPanelLight)
 
-const cannonPositions = [new THREE.Vector3(-3.2, -1.2, 1.7), new THREE.Vector3(3.2, -1.2, 1.7)]
-for (const p of cannonPositions) {
-  const g = new THREE.Group()
-  g.position.copy(p)
-  g.lookAt(0, .2, -20)
-  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(.16, .26, 3.4, 20), hullMat)
-  barrel.rotation.x = Math.PI / 2; g.add(barrel)
-  for (let r = 0; r < 3; r++) {
-    const ring = new THREE.Mesh(new THREE.CylinderGeometry(.22, .22, .14, 16), hull2Mat)
-    ring.rotation.x = Math.PI / 2; ring.position.z = -0.8 + r * 0.5; g.add(ring)
-  }
-  const tip = new THREE.Mesh(new THREE.CylinderGeometry(.21, .21, .32, 18), blueMat)
-  tip.rotation.x = Math.PI / 2; tip.position.z = -1.7; g.add(tip)
-  const vent = new THREE.Mesh(new THREE.BoxGeometry(.12, .35, 1.2), darkMat)
-  vent.position.set(0, -0.22, -0.4); g.add(vent)
-  cockpit.add(g)
-}
+// ── CANNON ASSEMBLIES — mounted at bottom corners, pointing inward
+// Each cannon is a full group with mount bracket + barrel slide (for recoil)
+const cannonPositions = [
+  new THREE.Vector3(-3.8, -1.5, 2.2),
+  new THREE.Vector3( 3.8, -1.5, 2.2)
+]
+const cannonSides = [-1, 1]  // -1 = left, +1 = right
 
+cannonGroups.length = 0
+
+cannonSides.forEach((side, idx) => {
+  const mountX = side * 3.8
+
+  // Mount bracket (fixed to cockpit)
+  const mount = new THREE.Group()
+  mount.position.set(mountX, -1.5, 2.2)
+  // Bracket body
+  addBox(mount, 0.6, 0.5, 0.8, 0, 0, 0, hull2Mat)
+  addBox(mount, 0.5, 0.2, 0.6, 0, -0.3, 0, darkMat)
+  // Side flanges
+  addBox(mount, 0.12, 0.5, 0.9, -0.35, 0,  0, hullMat)
+  addBox(mount, 0.12, 0.5, 0.9,  0.35, 0,  0, hullMat)
+  cockpit.add(mount)
+
+  // Barrel group — this slides back on recoil
+  const barrelGroup = new THREE.Group()
+  // Aim barrel group toward center/forward
+  barrelGroup.position.set(mountX, -1.5, 2.0)
+  barrelGroup.lookAt(new THREE.Vector3(side * 1.2, 0.3, -22))
+
+  // Main barrel — long cylinder
+  const barrel = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.14, 0.22, 4.2, 20),
+    hullMat
+  )
+  barrel.rotation.x = Math.PI / 2
+  barrelGroup.add(barrel)
+
+  // Barrel shroud segments (detail rings)
+  for (let r = 0; r < 5; r++) {
+    const ring = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.22, 0.22, 0.16, 16),
+      hull2Mat
+    )
+    ring.rotation.x = Math.PI / 2
+    ring.position.z = -1.4 + r * 0.55
+    barrelGroup.add(ring)
+  }
+
+  // Heat sink fins along barrel
+  for (let f = 0; f < 4; f++) {
+    const fin = new THREE.Mesh(
+      new THREE.BoxGeometry(0.42, 0.06, 0.22),
+      darkMat
+    )
+    fin.position.set(0, 0.28, -0.6 + f * 0.38)
+    barrelGroup.add(fin)
+  }
+
+  // Emitter tip — glowing blue
+  const tip = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.19, 0.19, 0.35, 18),
+    blueMat
+  )
+  tip.rotation.x = Math.PI / 2
+  tip.position.z = -2.15
+  barrelGroup.add(tip)
+
+  // Energy cell on side of barrel
+  const cell = new THREE.Mesh(
+    new THREE.BoxGeometry(0.18, 0.32, 0.8),
+    dimBlueMat
+  )
+  cell.position.set(side * -0.32, 0.22, -0.5)
+  barrelGroup.add(cell)
+
+  // Muzzle flash sphere (starts invisible, lit on fire)
+  const muzzle = new THREE.Mesh(
+    new THREE.SphereGeometry(0.28, 12, 12),
+    muzzleMat.clone()
+  )
+  muzzle.position.z = -2.35
+  barrelGroup.add(muzzle)
+
+  // Muzzle point light (starts off)
+  const muzzleLight = new THREE.PointLight(0x88ccff, 0, 6)
+  muzzleLight.position.z = -2.35
+  barrelGroup.add(muzzleLight)
+
+  cockpit.add(barrelGroup)
+
+  // Store for recoil + flash animation
+  cannonGroups.push({
+    group: barrelGroup,
+    baseZ: 2.0,
+    recoil: 0,         // current recoil offset (positive = pushed back)
+    muzzle,
+    muzzleLight
+  })
+})
+
+// ── Shield dome
 const dome = new THREE.Mesh(
   new THREE.SphereGeometry(1.7, 40, 20, 0, Math.PI*2, 0, Math.PI/2),
   greenMat
@@ -264,22 +398,27 @@ dome.position.set(0, -1.52, .38)
 dome.scale.set(1.3, 0.6, 0.7)
 cockpit.add(dome)
 
+// Dome collar ring
 const domeRing = new THREE.Mesh(
-  new THREE.TorusGeometry(1.7*1.3, 0.06, 12, 60, Math.PI),
-  new THREE.MeshStandardMaterial({ color: 0x66ffaa, emissive: 0x33ff88, emissiveIntensity: 2, transparent: true, opacity: 0.7 })
+  new THREE.TorusGeometry(1.7*1.3, 0.07, 14, 60, Math.PI),
+  new THREE.MeshStandardMaterial({ color: 0x66ffaa, emissive: 0x33ff88, emissiveIntensity: 2.2, transparent: true, opacity: 0.8 })
 )
 domeRing.position.set(0, -1.52, .38)
 domeRing.rotation.z = Math.PI
 domeRing.scale.z = 0.7
 cockpit.add(domeRing)
 
+// Dome base plate
+addBox(cockpit, 3.8, 0.18, 1.4, 0, -1.54, 0.0, hull2Mat)
+
 scene.add(cockpit)
 
-const engineLightL = new THREE.PointLight(0x0066ff, 1.5, 12)
-engineLightL.position.set(-3.2, -1.2, 2.5)
+// Engine glow lights on cannons
+const engineLightL = new THREE.PointLight(0x0066ff, 1.5, 10)
+engineLightL.position.set(-3.8, -1.5, 3.0)
 cockpit.add(engineLightL)
-const engineLightR = new THREE.PointLight(0x0066ff, 1.5, 12)
-engineLightR.position.set(3.2, -1.2, 2.5)
+const engineLightR = new THREE.PointLight(0x0066ff, 1.5, 10)
+engineLightR.position.set( 3.8, -1.5, 3.0)
 cockpit.add(engineLightR)
 
 // ─── Enemy Creation ───────────────────────────────────────────────────────────
@@ -300,60 +439,39 @@ function createEnemy(isBoss = false) {
   const wingMat = isBoss ? bossHullMat : enemyHullMat
   const coreMat = isBoss ? orangeMat : redMat
 
-  // Body — larger with emissive glow
   const body = new THREE.Mesh(new THREE.OctahedronGeometry(0.9 * s, 1), bodyMat)
-  body.scale.set(1.6, 0.7, 2.4)
-  g.add(body)
+  body.scale.set(1.6, 0.7, 2.4); g.add(body)
 
-  // Nose cone
   const nose = new THREE.Mesh(new THREE.ConeGeometry(.48 * s, 1.2 * s, 5), noseMat)
   nose.rotation.x = Math.PI / 2; nose.position.z = 1.0 * s; g.add(nose)
 
-  // Front core glow sphere
   const core = new THREE.Mesh(new THREE.SphereGeometry(.32 * s, 18, 18), coreMat)
   core.position.z = 1.05 * s; g.add(core)
 
-  // Mid body glow
   const core2 = new THREE.Mesh(new THREE.SphereGeometry(.2 * s, 12, 12), coreMat)
   core2.position.z = 0.0; g.add(core2)
 
-  // Strong core point light
-  const coreLight = new THREE.PointLight(
-    isBoss ? 0xff6600 : 0xff2030,
-    isBoss ? 8.0 : 6.0,
-    isBoss ? 24 : 15
-  )
-  coreLight.position.z = 1.05 * s
-  g.add(coreLight)
+  const coreLight = new THREE.PointLight(isBoss ? 0xff6600 : 0xff2030, isBoss ? 8.0 : 6.0, isBoss ? 24 : 15)
+  coreLight.position.z = 1.05 * s; g.add(coreLight)
 
-  // Back light to illuminate wings from behind
-  const backLight = new THREE.PointLight(
-    isBoss ? 0xff4400 : 0xcc0020,
-    isBoss ? 4.0 : 3.0,
-    isBoss ? 16 : 10
-  )
-  backLight.position.z = -0.8 * s
-  g.add(backLight)
+  const backLight = new THREE.PointLight(isBoss ? 0xff4400 : 0xcc0020, isBoss ? 4.0 : 3.0, isBoss ? 16 : 10)
+  backLight.position.z = -0.8 * s; g.add(backLight)
 
-  // Wings — wider and more prominent
   const wingGeo = new THREE.BoxGeometry(2.4 * s, .18 * s, .6 * s)
   const lWing = new THREE.Mesh(wingGeo, wingMat)
   lWing.position.set(-1.2*s, 0, -.2*s); lWing.rotation.z = .22; g.add(lWing)
   const rWing = new THREE.Mesh(wingGeo, wingMat)
   rWing.position.set(1.2*s, 0, -.2*s); rWing.rotation.z = -.22; g.add(rWing)
 
-  // Glowing wing tips
   const lTip = new THREE.Mesh(new THREE.SphereGeometry(.22*s, 10, 10), coreMat)
   lTip.position.set(-2.3*s, .22*s, -.2*s); g.add(lTip)
   const rTip = lTip.clone(); rTip.position.x = 2.3*s; g.add(rTip)
 
-  // Wing tip lights
   const ltLight = new THREE.PointLight(isBoss ? 0xff6600 : 0xff1010, 2.5, 6)
   ltLight.position.set(-2.3*s, .22*s, -.2*s); g.add(ltLight)
   const rtLight = new THREE.PointLight(isBoss ? 0xff6600 : 0xff1010, 2.5, 6)
   rtLight.position.set(2.3*s, .22*s, -.2*s); g.add(rtLight)
 
-  // Engine glows at the back
   const eng1 = new THREE.Mesh(new THREE.SphereGeometry(.24*s, 12, 12), coreMat)
   eng1.position.set(-.52*s, 0, -1.18*s); g.add(eng1)
   const eng2 = eng1.clone(); eng2.position.x = .52*s; g.add(eng2)
@@ -408,6 +526,16 @@ function fireLaser() {
   if (now - state.lastShot < 115 || state.gameOver) return
   state.lastShot = now
 
+  // Trigger recoil + muzzle flash on both cannons
+  cannonGroups.forEach(cg => {
+    cg.recoil = 0.55          // push barrel back
+    // Muzzle flash — bright white/blue sphere
+    cg.muzzle.material.opacity = 0.95
+    cg.muzzle.material.color.set(0xaaddff)
+    cg.muzzleLight.intensity = 8.0
+    cg.muzzleLight.color.set(0x88ccff)
+  })
+
   for (const p of cannonPositions) {
     const worldP = p.clone()
     cockpit.localToWorld(worldP)
@@ -416,16 +544,16 @@ function fireLaser() {
     const len = worldP.distanceTo(end)
 
     const beam = new THREE.Mesh(
-      new THREE.CylinderGeometry(.05, .05, len, 8),
-      new THREE.MeshBasicMaterial({ color: 0x44bbff, transparent: true, opacity: .95 })
+      new THREE.CylinderGeometry(.055, .055, len, 8),
+      new THREE.MeshBasicMaterial({ color: 0x55ccff, transparent: true, opacity: .95 })
     )
     beam.position.copy(mid)
     beam.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), end.clone().sub(worldP).normalize())
     scene.add(beam)
 
     const glow = new THREE.Mesh(
-      new THREE.CylinderGeometry(.18, .18, len, 8),
-      new THREE.MeshBasicMaterial({ color: 0x0088ff, transparent: true, opacity: .18 })
+      new THREE.CylinderGeometry(.22, .22, len, 8),
+      new THREE.MeshBasicMaterial({ color: 0x0088ff, transparent: true, opacity: .16 })
     )
     glow.position.copy(mid)
     glow.quaternion.copy(beam.quaternion)
@@ -455,16 +583,16 @@ function enemyFireAt(e) {
   const speed = e.userData.isBoss ? 28 : 20
 
   const bolt = new THREE.Mesh(
-    new THREE.CylinderGeometry(.06, .06, 1.8, 8),
-    new THREE.MeshBasicMaterial({ color: e.userData.isBoss ? 0xff6600 : 0xff2020, transparent: true, opacity: .9 })
+    new THREE.CylinderGeometry(.07, .07, 2.0, 8),
+    new THREE.MeshBasicMaterial({ color: e.userData.isBoss ? 0xff6600 : 0xff2020, transparent: true, opacity: .92 })
   )
   bolt.position.copy(start)
   bolt.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.clone().normalize())
   scene.add(bolt)
 
   const boltGlow = new THREE.Mesh(
-    new THREE.CylinderGeometry(.2, .2, 1.8, 8),
-    new THREE.MeshBasicMaterial({ color: e.userData.isBoss ? 0xff4400 : 0xff0000, transparent: true, opacity: .12 })
+    new THREE.CylinderGeometry(.24, .24, 2.0, 8),
+    new THREE.MeshBasicMaterial({ color: e.userData.isBoss ? 0xff4400 : 0xff0000, transparent: true, opacity: .14 })
   )
   boltGlow.position.copy(start)
   boltGlow.quaternion.copy(bolt.quaternion)
@@ -523,8 +651,7 @@ function flash(pos, size = 1, color = 0xff4818) {
     new THREE.SphereGeometry(size, 16, 16),
     new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .92 })
   )
-  m.position.copy(pos)
-  scene.add(m)
+  m.position.copy(pos); scene.add(m)
   blasts.push({ mesh: m, life: .4, maxLife: .4 })
 }
 
@@ -575,6 +702,7 @@ function restart() { window.location.reload() }
 function update(dt) {
   const t = clock.elapsedTime
 
+  // Screen shake
   if (state.screenShake > 0) {
     const s = state.screenShake
     camera.position.x = Math.sin(t * 38) * s * 0.25
@@ -583,6 +711,24 @@ function update(dt) {
     if (state.screenShake < 0) { state.screenShake = 0; camera.position.set(0, 1.8, 8) }
   }
 
+  // ── Cannon recoil animation
+  cannonGroups.forEach(cg => {
+    if (cg.recoil > 0) {
+      // Slide barrel back in local Z (which is forward axis after lookAt)
+      cg.group.position.z = cg.baseZ - cg.recoil
+      cg.recoil -= dt * 6.5   // spring back
+      if (cg.recoil < 0) { cg.recoil = 0; cg.group.position.z = cg.baseZ }
+      // Fade muzzle flash
+      const f = cg.recoil / 0.55
+      cg.muzzle.material.opacity = f * 0.95
+      cg.muzzleLight.intensity   = f * 8.0
+    } else {
+      cg.muzzle.material.opacity = 0
+      cg.muzzleLight.intensity   = 0
+    }
+  })
+
+  // Ambient animations
   stars.rotation.z += dt * .005
   stars.rotation.y += dt * .002
   brightStars.rotation.z += dt * .003
@@ -596,16 +742,23 @@ function update(dt) {
     if (a.position.z > 20) { a.position.z = -180; a.position.x = (Math.random()-.5)*80 }
   })
 
+  // Cockpit sway
   cockpit.position.x += (pointer.x * .2 - cockpit.position.x) * .075
   cockpit.position.y += (-pointer.y * .08 - cockpit.position.y) * .06
   cockpit.rotation.y = pointer.x * .028
   cockpit.rotation.x = -pointer.y * .016
   cockpit.rotation.z = -pointer.x * .012
 
+  // Engine pulse
   const pulse = 1.2 + Math.sin(t * 8) * 0.3
   engineLightL.intensity = engineLightR.intensity = pulse
-  blueMat.emissiveIntensity = 2.5 + Math.sin(t * 6) * 0.4
+  blueMat.emissiveIntensity = 2.8 + Math.sin(t * 6) * 0.5
 
+  // Panel LED pulse
+  leftPanelLight.intensity  = 2.0 + Math.sin(t * 4.2) * 0.4
+  rightPanelLight.intensity = 2.0 + Math.sin(t * 4.2 + 0.5) * 0.4
+
+  // Shield dome
   const shieldFrac = Math.max(0, 1 - state.shieldHits / state.maxShieldHits)
   dome.material.opacity = 0.08 + shieldFrac * 0.32
   domeRing.material.opacity = 0.4 + shieldFrac * 0.45
@@ -613,22 +766,25 @@ function update(dt) {
 
   redGlow.intensity = 3.5 + Math.sin(t * 2.2) * 0.8
 
+  // Aim world
   const dir = new THREE.Vector3(pointer.x, pointer.y, .5).unproject(camera).sub(camera.position).normalize()
-  const aimPlaneZ = -38
-  const aimDist = (aimPlaneZ - camera.position.z) / dir.z
+  const aimDist = (-38 - camera.position.z) / dir.z
   aimWorld = camera.position.clone().add(dir.multiplyScalar(aimDist))
 
+  // Combo timer
   if (state.comboTimer > 0) {
     state.comboTimer -= dt
     if (state.comboTimer <= 0) state.combo = 0
   }
 
+  // Spawning
   state.nextSpawn -= dt
   if (!state.bossActive && state.kills < state.targetKills && state.nextSpawn <= 0) {
     spawnEnemy()
     state.nextSpawn = Math.max(.38, 1.2 - state.round * .15)
   }
 
+  // Enemies
   for (const e of [...enemies]) {
     const boss = e.userData.isBoss
     if (!boss) {
@@ -638,8 +794,7 @@ function update(dt) {
       if (e.position.z > -45) {
         e.userData.shotTimer += dt
         if (e.userData.shotTimer >= e.userData.nextShot) {
-          enemyFireAt(e)
-          e.userData.shotTimer = 0
+          enemyFireAt(e); e.userData.shotTimer = 0
           e.userData.nextShot = 1.8 + Math.random() * 2.5
         }
       }
@@ -655,6 +810,7 @@ function update(dt) {
     if (e.position.z > 7.5) destroyOrPass(e)
   }
 
+  // Enemy lasers
   for (const l of [...enemyLasers]) {
     l.mesh.position.addScaledVector(l.dir, l.speed * dt)
     l.glow.position.copy(l.mesh.position)
@@ -670,17 +826,19 @@ function update(dt) {
     }
   }
 
+  // Player lasers
   for (const l of [...lasers]) {
     l.life -= dt
     const fade = Math.max(0, l.life / .13)
     l.mesh.material.opacity = fade * .95
-    l.glow.material.opacity = fade * .18
+    l.glow.material.opacity = fade * .16
     if (l.life <= 0) {
       scene.remove(l.mesh); scene.remove(l.glow)
       lasers.splice(lasers.indexOf(l), 1)
     }
   }
 
+  // Blasts
   for (const b of [...blasts]) {
     b.life -= dt
     b.mesh.scale.multiplyScalar(1 + dt * 5.5)
@@ -688,6 +846,7 @@ function update(dt) {
     if (b.life <= 0) { scene.remove(b.mesh); blasts.splice(blasts.indexOf(b), 1) }
   }
 
+  // Debris
   for (const d of [...debris]) {
     d.life -= dt
     d.mesh.position.addScaledVector(d.vel, dt)
@@ -703,8 +862,7 @@ function update(dt) {
 }
 
 function destroyOrPass(e) {
-  scene.remove(e)
-  enemies.splice(enemies.indexOf(e), 1)
+  scene.remove(e); enemies.splice(enemies.indexOf(e), 1)
   damageShield(e.userData.isBoss ? 6 : 1)
 }
 
