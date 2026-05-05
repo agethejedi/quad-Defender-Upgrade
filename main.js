@@ -176,17 +176,67 @@ function addBox(group, sx, sy, sz, x, y, z, material, rotZ=0, rotX=0) {
   return m
 }
 
-addBox(cockpit, 10.5, .4, .5,  0, -1.65, 1.2, hullMat)
-addBox(cockpit, 1.8,  .3, .4,  0, -1.7,  0.0, hull2Mat)
-addBox(cockpit, .30, 7.2, .38, -5.8, 1.15, -1.3, hullMat, -0.27)
-addBox(cockpit, .30, 7.2, .38,  5.8, 1.15, -1.3, hullMat,  0.27)
-addBox(cockpit, 3.4, .22, .30, -3.9, -1.12, 0.1, blueMat)
-addBox(cockpit, 3.4, .22, .30,  3.9, -1.12, 0.1, blueMat)
-addBox(cockpit, 1.6, .15, .22, -3.9, -1.35, 0.1, accentMat)
-addBox(cockpit, 1.6, .15, .22,  3.9, -1.35, 0.1, accentMat)
+// Bottom crossbar
+addBox(cockpit, 14, .5, .6,  0, -1.65, 1.4, hullMat)
+addBox(cockpit, 2.2, .35, .45, 0, -1.72, 0.0, hull2Mat)
 
-const rimPositions = [-4.2, -2.1, 0, 2.1, 4.2]
-rimPositions.forEach(x => { addBox(cockpit, .22, .14, .38, x, -1.58, 1.35, hull2Mat) })
+// Blue wing accent strips
+addBox(cockpit, 4.0, .25, .32, -4.2, -1.14, 0.2, blueMat)
+addBox(cockpit, 4.0, .25, .32,  4.2, -1.14, 0.2, blueMat)
+addBox(cockpit, 2.0, .16, .22, -4.2, -1.38, 0.2, accentMat)
+addBox(cockpit, 2.0, .16, .22,  4.2, -1.38, 0.2, accentMat)
+
+// Crossbar detail bumps
+const rimPositions = [-5.2, -3.4, -1.6, 0, 1.6, 3.4, 5.2]
+rimPositions.forEach(x => { addBox(cockpit, .26, .16, .42, x, -1.56, 1.55, hull2Mat) })
+
+// ── LEFT side frame panel (thick, angled, fills left edge of screen)
+const leftPanel = new THREE.Group()
+// Main vertical slab
+addBox(leftPanel, 2.8, 12, 1.2, 0, 0, 0, hullMat)
+// Inner face detail plates
+addBox(leftPanel, .18, 10, .9, 1.2, 0, 0, hull2Mat)
+addBox(leftPanel, .12, 8,  .7, 1.3, 0.4, 0, darkMat)
+// Horizontal accent strips with blue glow
+addBox(leftPanel, 2.8, .18, .55, 0, -1.8, 0.1, blueMat)
+addBox(leftPanel, 2.8, .18, .55, 0,  0.2, 0.1, blueMat)
+addBox(leftPanel, 2.8, .18, .55, 0,  2.2, 0.1, blueMat)
+addBox(leftPanel, 2.8, .12, .4,  0, -0.8, 0.1, accentMat)
+addBox(leftPanel, 2.8, .12, .4,  0,  1.2, 0.1, accentMat)
+// Rivets / bolt details
+for (let ry of [-3, -1.5, 0, 1.5, 3]) {
+  addBox(leftPanel, .22, .22, .22, 1.1, ry, 0.45, hull2Mat)
+}
+leftPanel.position.set(-8.2, 0.5, 1.0)
+leftPanel.rotation.y =  0.22
+leftPanel.rotation.z = -0.04
+cockpit.add(leftPanel)
+
+// ── RIGHT side frame panel (mirror)
+const rightPanel = new THREE.Group()
+addBox(rightPanel, 2.8, 12, 1.2, 0, 0, 0, hullMat)
+addBox(rightPanel, .18, 10, .9, -1.2, 0, 0, hull2Mat)
+addBox(rightPanel, .12, 8,  .7, -1.3, 0.4, 0, darkMat)
+addBox(rightPanel, 2.8, .18, .55, 0, -1.8, 0.1, blueMat)
+addBox(rightPanel, 2.8, .18, .55, 0,  0.2, 0.1, blueMat)
+addBox(rightPanel, 2.8, .18, .55, 0,  2.2, 0.1, blueMat)
+addBox(rightPanel, 2.8, .12, .4,  0, -0.8, 0.1, accentMat)
+addBox(rightPanel, 2.8, .12, .4,  0,  1.2, 0.1, accentMat)
+for (let ry of [-3, -1.5, 0, 1.5, 3]) {
+  addBox(rightPanel, .22, .22, .22, -1.1, ry, 0.45, hull2Mat)
+}
+rightPanel.position.set(8.2, 0.5, 1.0)
+rightPanel.rotation.y = -0.22
+rightPanel.rotation.z =  0.04
+cockpit.add(rightPanel)
+
+// Blue glow lights on side panels
+const leftPanelLight = new THREE.PointLight(0x0055ff, 1.8, 8)
+leftPanelLight.position.set(-7.5, 0, 1.5)
+cockpit.add(leftPanelLight)
+const rightPanelLight = new THREE.PointLight(0x0055ff, 1.8, 8)
+rightPanelLight.position.set(7.5, 0, 1.5)
+cockpit.add(rightPanelLight)
 
 const cannonPositions = [new THREE.Vector3(-3.2, -1.2, 1.7), new THREE.Vector3(3.2, -1.2, 1.7)]
 for (const p of cannonPositions) {
